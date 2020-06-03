@@ -8,25 +8,39 @@ from pprint import pprint
 from googleapiclient import discovery
 import speedtest
 import datetime
+import json
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# The ID and range of a sample spreadsheet.
-spreadsheet_id = 'Enter your sheet-ID Here'
+# Class for creating an object of JSON-files
+class JsonData(object):
+    def __init__(self, data):
+	    self.__dict__ = json.loads(data)
 
 def testSpeed():
+    """
+    Returns a list with values to append to sheet.
+    index 0: A date-time string
+    index 1: Download speed
+    index 2: Upload speed
+    """
     st = speedtest.Speedtest()
     toReturn = list()
 
-    toReturn.append(datetime.date.today())
-    toReturn.append(datetime.datetime.now().strftime("%H:%M:%S"))
-    toReturn.append(st.download()/10**6)
-    toReturn.append(st.upload()/10**6)
+    toReturn.append(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S"))
+    toReturn.append(round(st.download()/10**6, 2))
+    toReturn.append(round(st.upload()/10**6, 2))
     return toReturn
 
 def main():
-    # loads creditials from credentials.json
+    # Read data-file and get sheet id
+    with open('data.json', "r") as fh:
+        jsonData = fh.read()
+    parsedJson = JsonData(jsonData)
+
+    spreadsheet_id = parsedJson.spreadsheetID
+        
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -48,26 +62,25 @@ def main():
 
     service = build('sheets', 'v4', credentials=creds)
 
-    range_ = 'A1:E1'  # TODO: Update placeholder value.
+    range_ = 'A1:C1' 
 
     # How the input data should be interpreted.
-    value_input_option = 'RAW'  # TODO: Update placeholder value.
+    value_input_option = 'USER_ENTERED'
 
     # How the input data should be inserted.
-    insert_data_option = 'INSERT_ROWS'  # TODO: Update placeholder value.
+    insert_data_option = 'INSERT_ROWS'
 
     data = testSpeed()
 
     value_range_body = {
         "majorDimension": "COLUMNS",
-        "values":[[str(data[0])], [str(data[1])], [str(data[2])], [str(data[3])]]
+        "values":[[data[0]], [str(data[1]).replace(".", ",")], [str(data[2]).replace(".", ",")]]
     }
 
     request = service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=range_, valueInputOption=value_input_option, insertDataOption=insert_data_option, body=value_range_body)
     response = request.execute()
 
-    # TODO: Change code below to process the `response` dict:
-    pprint(response)
+    pprint("Updated: {} cells".format(response["updates"]["updatedCells"]))
 
 if __name__ == '__main__':
     main()
